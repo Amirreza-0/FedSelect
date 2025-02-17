@@ -1,5 +1,6 @@
 # FedSelect
-Underconstruction...
+Unde rconstruction...
+
 Federated feature selection and dimentionality reduction based on correlation
 A distributed approach for performing feature selection across multiple datasets while maintaining data privacy. This implementation enables correlation-based feature selection where each site independently processes its local data while contributing to a global feature importance mapping.
 
