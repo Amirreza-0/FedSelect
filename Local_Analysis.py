@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Set
 from dataclasses import dataclass
+from typing import Dict, List, Tuple
+from collections import defaultdict
 
 
 @dataclass
@@ -11,200 +12,111 @@ class CorrelationGroup:
     is_isolated: bool = False
 
 
+class UnionFind:
+    """A simple union-find data structure for grouping elements."""
+    def __init__(self, elements: List[str]):
+        self.parent = {elem: elem for elem in elements}
+
+    def find(self, item: str) -> str:
+        if self.parent[item] != item:
+            self.parent[item] = self.find(self.parent[item])
+        return self.parent[item]
+
+    def union(self, a: str, b: str) -> None:
+        root_a, root_b = self.find(a), self.find(b)
+        if root_a != root_b:
+            self.parent[root_b] = root_a
+
+
 class LocalCorrelationAnalyzer:
     def __init__(self, correlation_threshold: float = 0.8):
         """
-        Initialize the local correlation analyzer.
-
-        Args:
-            correlation_threshold: Minimum absolute correlation to consider features as correlated
+        Initialize the analyzer with a minimum absolute correlation threshold.
         """
         self.correlation_threshold = correlation_threshold
 
     def calculate_correlation_matrix(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculate the correlation matrix for the input dataset.
-
-        Args:
-            data: Input DataFrame containing features
-
-        Returns:
-            Correlation matrix as DataFrame
+        Compute the absolute correlation matrix.
         """
         return data.corr().abs()
 
-    def find_correlated_pairs(self, correlation_matrix: pd.DataFrame) -> List[Tuple[str, str, float]]:
+    def find_correlated_pairs(self, corr_matrix: pd.DataFrame) -> List[Tuple[str, str, float]]:
         """
-        Find pairs of features that are highly correlated.
-
-        Args:
-            correlation_matrix: Correlation matrix DataFrame
-
-        Returns:
-            List of tuples containing (feature1, feature2, correlation_value)
+        Identify all feature pairs with correlation above the threshold.
+        Only the upper triangle of the matrix is considered to avoid duplicates.
         """
         pairs = []
-        # Get upper triangle of correlation matrix
-        upper_tri = correlation_matrix.where(np.triu(np.ones(correlation_matrix.shape), k=1).astype(bool))
-
-        # Find feature pairs with correlation above threshold
-        for col in upper_tri.columns:
-            for idx, value in upper_tri[col].items():
-                if value >= self.correlation_threshold:
-                    pairs.append((idx, col, value))
-
+        # Use the upper triangle to avoid redundant pairs
+        for i, row in enumerate(corr_matrix.index):
+            for j, col in enumerate(corr_matrix.columns):
+                if j <= i:
+                    continue
+                corr_value = corr_matrix.iat[i, j]
+                if corr_value >= self.correlation_threshold:
+                    pairs.append((row, col, corr_value))
         return pairs
 
-    def find_isolated_features(self, data: pd.DataFrame, grouped_features: Set[str]) -> List[str]:
+    def group_correlated_features(self, pairs: List[Tuple[str, str, float]], features: List[str]
+                                 ) -> Dict[int, CorrelationGroup]:
         """
-        Find features that are not part of any correlation group.
-
-        Args:
-            data: Input DataFrame
-            grouped_features: Set of features already in correlation groups
-
-        Returns:
-            List of isolated feature names
+        Group features based on correlated pairs using union-find.
+        Then, compute the mean correlation per group and mark isolated features.
         """
-        all_features = set(data.columns)
-        return list(all_features - grouped_features)
+        uf = UnionFind(features)
+        for f1, f2, _ in pairs:
+            uf.union(f1, f2)
 
-    def group_correlated_features(self,
-                                  pairs: List[Tuple[str, str, float]],
-                                  data: pd.DataFrame) -> Dict[int, CorrelationGroup]:
-        """
-        Group correlated features together and identify isolated features.
+        # Group features by their root
+        groups = defaultdict(list)
+        for feat in features:
+            groups[uf.find(feat)].append(feat)
 
-        Args:
-            pairs: List of correlated feature pairs
-            data: Input DataFrame for finding isolated features
-
-        Returns:
-            Dictionary mapping group IDs to CorrelationGroup objects
-        """
-        # Initialize groups
-        groups: Dict[int, Set[str]] = {}
-        correlations: Dict[int, List[float]] = {}
-        group_id = 0
-
-        # Helper function to find group containing a feature
-        def find_feature_group(feature: str) -> int:
-            for gid, group in groups.items():
-                if feature in group:
-                    return gid
-            return -1
-
-        # Process each correlation pair
-        for feat1, feat2, corr in pairs:
-            group1 = find_feature_group(feat1)
-            group2 = find_feature_group(feat2)
-
-            if group1 == -1 and group2 == -1:
-                # Create new group
-                groups[group_id] = {feat1, feat2}
-                correlations[group_id] = [corr]
-                group_id += 1
-            elif group1 == -1:
-                # Add to existing group2
-                groups[group2].add(feat1)
-                correlations[group2].append(corr)
-            elif group2 == -1:
-                # Add to existing group1
-                groups[group1].add(feat2)
-                correlations[group1].append(corr)
-            elif group1 != group2:
-                # Merge groups
-                groups[group1].update(groups[group2])
-                correlations[group1].extend(correlations[group2])
-                del groups[group2]
-                del correlations[group2]
-
-        # Get all grouped features
-        grouped_features = set()
-        for feature_group in groups.values():
-            grouped_features.update(feature_group)
-
-        # Find isolated features
-        isolated_features = self.find_isolated_features(data, grouped_features)
-
-        # Create result dictionary with both grouped and isolated features
-        result = {}
-
-        # Add correlated groups
-        for gid, features in groups.items():
-            mean_corr = np.mean(correlations[gid])
-            result[gid] = CorrelationGroup(
-                features=list(features),
+        # Compute the mean correlation for pairs within each group
+        group_results = {}
+        for group in groups.values():
+            # Select pairs where both features belong to the group
+            group_corrs = [corr for f1, f2, corr in pairs if f1 in group and f2 in group]
+            mean_corr = np.mean(group_corrs) if group_corrs else 1.0
+            is_isolated = len(group) == 1 and not group_corrs
+            group_results[len(group_results)] = CorrelationGroup(
+                features=sorted(group),
                 mean_correlation=mean_corr,
-                is_isolated=False
+                is_isolated=is_isolated
             )
-
-        # Add isolated features as individual groups
-        for i, feature in enumerate(isolated_features, start=len(groups)):
-            result[i] = CorrelationGroup(
-                features=[feature],
-                mean_correlation=1.0,  # Self-correlation
-                is_isolated=True
-            )
-
-        return result
+        return group_results
 
     def analyze(self, data: pd.DataFrame) -> Dict[int, CorrelationGroup]:
         """
-        Perform complete correlation analysis on the dataset.
-
-        Args:
-            data: Input DataFrame
-
-        Returns:
-            Dictionary of correlation groups including isolated features
+        Execute the full analysis: compute correlation, find pairs, and group features.
         """
-        correlation_matrix = self.calculate_correlation_matrix(data)
-        correlated_pairs = self.find_correlated_pairs(correlation_matrix)
-        correlation_groups = self.group_correlated_features(correlated_pairs, data)
-        return correlation_groups
+        corr_matrix = self.calculate_correlation_matrix(data)
+        pairs = self.find_correlated_pairs(corr_matrix)
+        features = list(data.columns)
+        return self.group_correlated_features(pairs, features)
 
 
-def format_local_results(correlation_groups: Dict[int, CorrelationGroup]) -> dict[int, list[str]]:
+def format_local_results(correlation_groups: Dict[int, CorrelationGroup]) -> Dict[int, List[str]]:
     """
-    Format correlation groups into a detailed output format.
-
-    Args:
-        correlation_groups: Dictionary of CorrelationGroup objects
-
-    Returns:
-        Dictionary with correlation groups and metadata
+    Format the analysis output to show only the list of features per group.
     """
-    # return {
-    #     "groups": {
-    #         gid: {
-    #             "features": group.features,
-    #             "mean_correlation": group.mean_correlation,
-    #             "is_isolated": group.is_isolated
-    #         }
-    #         for gid, group in correlation_groups.items()
-    #     }
-    # }
-
-    return {
-            gid: group.features
-            for gid, group in correlation_groups.items()
-        }
+    return {gid: group.features for gid, group in correlation_groups.items()}
 
 
-# Example usage
-data = pd.DataFrame({
-    'feature1': [1, 2, 3, 4, 5],
-    'feature2': [1.1, 2.1, 3.1, 4.1, 5.1],  # Correlated with feature1
-    'feature3': [10, 20, 30, 40, 50],
-    'feature4': [11, 21, 31, 41, 51],  # Correlated with feature3
-    'feature5': [100, 4, 300, 2, 500]  # Isolated feature
-})
+# --- Example usage ---
+if __name__ == '__main__':
+    data = pd.DataFrame({
+        'feature1': [1, 2, 3, 4, 5],
+        'feature2': [1.1, 2.1, 3.1, 4.1, 5.1],  # Highly correlated with feature1
+        'feature3': [10, 20, 30, 40, 50],
+        'feature4': [11, 21, 31, 41, 51],         # Highly correlated with feature3
+        'feature5': [100, 4, 300, 2, 500]          # Isolated feature
+    })
 
-analyzer = LocalCorrelationAnalyzer(correlation_threshold=0.95)
-correlation_groups = analyzer.analyze(data)
-results = format_local_results(correlation_groups)
-
-print(results)
-# Output example:
-# {{0: ['feature4', 'feature2', 'feature1', 'feature3'], 1: ['feature5']}}
+    analyzer = LocalCorrelationAnalyzer(correlation_threshold=0.95)
+    correlation_groups = analyzer.analyze(data)
+    results = format_local_results(correlation_groups)
+    print(results)
+    
+    # Output example:
+    # {{0: ['feature4', 'feature2', 'feature1', 'feature3'], 1: ['feature5']}}
