@@ -25,39 +25,6 @@ local_correlations = {
 The central coordinator receives correlation groups from all sites and generates importance rankings. For instance:
 
 ```python
-global_mapping = {
-    "blood_pressure": 1,  # Appears in many sites, highly representative
-    "heart_rate": 2,      # Often grouped with blood pressure
-    "glucose": 1,         # Unique representative in its group
-    "height": 3,          # Less unique, appears in various groups
-    "insulin": 2          # Moderately representative
-}
-```
-
-Lower ranks indicate features that are more consistently grouped and representative.
-
-### Feature Selection
-When a site needs to select features, it:
-1. Performs local correlation analysis
-2. Applies the global mapping to select the most representative features
-
-For example:
-```python
-# Local correlations at Hospital A
-local_groups = {
-    "group1": ["blood_pressure", "heart_rate"],
-    "group2": ["glucose", "insulin"]
-}
-
-# Using global mapping
-selected_features = ["blood_pressure", "glucose"]  # Lowest ranks from each group
-```
-
-## Implementation Example
-
-Here's a concrete example of the process:
-
-```python
 # Site 1 Data: Patient vitals
 vitals_correlations = {
     "group1": ["systolic_bp", "diastolic_bp", "mean_bp"],
@@ -83,6 +50,26 @@ global_importance = {
     "mean_bp": 3        # Derived from other BP measures
 }
 ```
+
+Lower ranks indicate features that are more consistently grouped and representative.
+
+### Feature Selection
+When a site needs to select features, it:
+1. Performs local correlation analysis
+2. Applies the global mapping to select the most representative features
+
+For example:
+```python
+# Local correlations at Hospital A
+local_groups = {
+    "group1": ["blood_pressure", "heart_rate"],
+    "group2": ["glucose", "insulin"]
+}
+
+# Using global mapping
+selected_features = ["blood_pressure", "glucose"]  # Lowest ranks from each group
+```
+
 
 ## Privacy and Security
 
