@@ -21,7 +21,7 @@ local_correlations = {
 }
 ```
 
-### Global Mapping
+### Global Ranking
 The central coordinator receives correlation groups from all sites and generates importance rankings. For instance:
 
 ```python
@@ -37,7 +37,7 @@ labs_correlations = {
     "group2": ["systolic_bp", "pulse"]
 }
 
-# Generated Global Mapping
+# Generated Global Raning
 global_importance = {
     "systolic_bp": 1,    # Appears in both sites, good representative
     "diastolic_bp": 2,   # Highly correlated with systolic
@@ -56,7 +56,7 @@ Lower ranks indicate features that are more consistently grouped and representat
 ### Feature Selection
 When a site needs to select features, it:
 1. Performs local correlation analysis
-2. Applies the global mapping to select the most representative features
+2. Uses the global ranking to select the most representative features
 
 For example:
 ```python
@@ -66,7 +66,7 @@ local_groups = {
     "group2": ["glucose", "insulin"]
 }
 
-# Using global mapping
+# Using global ranking for feature slection
 selected_features = ["blood_pressure", "glucose"]  # Lowest ranks from each group
 ```
 
