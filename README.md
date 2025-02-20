@@ -63,13 +63,13 @@ When a site needs to select features, it:
 For example:
 ```python
 # Local correlations at Hospital A
-local_groups = {
-    "group1": ["blood_pressure", "heart_rate"],
-    "group2": ["glucose", "insulin"]
+vitals_correlations = {
+    "group1": ["systolic_bp", "diastolic_bp", "mean_bp"],
+    "group2": ["temperature", "fever_risk"]
 }
 
 # Using global ranking for feature slection
-selected_features = ["blood_pressure", "glucose"]  # Lowest ranks from each group
+selected_features = ["systolic_bp", "temperature"]  # Lowest ranks from each group
 ```
 
 
