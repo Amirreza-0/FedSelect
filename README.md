@@ -40,7 +40,7 @@ labs_correlations = {
 }
 
 # Generated Global Raning
-global_importance = {
+global_feature_ranks = {
     "systolic_bp": 1,    # Appears in both sites, good representative
     "diastolic_bp": 2,   # Highly correlated with systolic
     "glucose": 1,        # Main representative for lab group
