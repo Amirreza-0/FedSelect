@@ -79,4 +79,4 @@ The system maintains privacy by design. Sites never share raw data - only featur
 
 ## License
 
-This project is licensed under the MIT License. See LICENSE.md for details.
+See LICENSE.md for details.
